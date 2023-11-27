@@ -1,6 +1,6 @@
 const express = require("express");
 const cors = require("cors");
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 require("dotenv").config();
 const jwt = require("jsonwebtoken");
 const app = express();
@@ -135,11 +135,49 @@ async function run() {
     });
 
     /*-------------------> product api<----------------------*/
-
+    app.get("/products/:email", async (req, res) => {
+      const email = req.params.email;
+      const filter = { userEmail: email };
+      const result = await productsCollection.find(filter).toArray();
+      res.send(result);
+    });
+    app.get("/products/:email/:id", async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
+      const result = await productsCollection.findOne(filter);
+      res.send(result);
+    });
     app.post("/products", async (req, res) => {
       const newProducts = req.body;
       const result = await productsCollection.insertOne(newProducts);
       res.send(result);
+    });
+    app.put("/products/:email/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+        const filter = { _id: new ObjectId(id) };
+        const options = { upsert: true };
+        const UpdatedProduct = req.body;
+        const book = {
+          $set: {
+            ...UpdatedProduct,
+          },
+        };
+        const result = await productsCollection.updateOne(filter, book, options);
+        res.send(result);
+      } catch (err) {
+        console.log(err.message);
+      }
+    });
+    app.delete("/products/:email/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+        const query = { _id: new ObjectId(id) };
+        const result = await productsCollection.deleteOne(query);
+        res.send(result);
+      } catch (err) {
+        console.log(err.message);
+      }
     });
 
     /*-------------------> review api<----------------------*/
