@@ -28,6 +28,7 @@ async function run() {
     const reviewsCollection = client.db("InventoHub").collection("reviews");
     const usersCollection = client.db("InventoHub").collection("users");
     const shopsCollection = client.db("InventoHub").collection("shops");
+    const productsCollection = client.db("InventoHub").collection("products");
 
     /*-------------------> jwt related api<----------------------*/
     app.post("/jwt", async (req, res) => {
@@ -84,7 +85,7 @@ async function run() {
       if (user) {
         manager = user?.role === "manager";
       }
-      res.send({ manager });
+      res.send({ manager, user });
     });
     app.get("/users/admin/:email", async (req, res) => {
       const userEmail = req.params.email;
@@ -119,16 +120,25 @@ async function run() {
     });
 
     /*-------------------> Store api<----------------------*/
-    app.get("/shops/:email", async (req, res) => {
+    app.get("/shops/:email", verifyToken, verifyManager, async (req, res) => {
       const userEmail = req.params.email;
       const filter = { owner_email: userEmail };
       const result = await shopsCollection.findOne(filter);
       res.send(result);
     });
+
     app.post("/shops", async (req, res) => {
       const newShop = req.body;
       newShop.productLimit = 3;
       const result = await shopsCollection.insertOne(newShop);
+      res.send(result);
+    });
+
+    /*-------------------> product api<----------------------*/
+
+    app.post("/products", async (req, res) => {
+      const newProducts = req.body;
+      const result = await productsCollection.insertOne(newProducts);
       res.send(result);
     });
 
