@@ -30,6 +30,8 @@ async function run() {
     const usersCollection = client.db("InventoHub").collection("users");
     const shopsCollection = client.db("InventoHub").collection("shops");
     const productsCollection = client.db("InventoHub").collection("products");
+    const cartsCollection = client.db("InventoHub").collection("carts");
+    const salesCollection = client.db("InventoHub").collection("sales");
 
     /*-------------------> jwt related api<----------------------*/
     app.post("/jwt", async (req, res) => {
@@ -98,6 +100,15 @@ async function run() {
       }
       res.send({ admin });
     });
+    app.get("/users", async (req, res) => {
+      try {
+        const filter = { role: { $ne: "admin" } };
+        const result = await usersCollection.find(filter).toArray();
+        res.send(result);
+      } catch (err) {
+        console.log(err);
+      }
+    });
     app.post("/users", async (req, res) => {
       const user = req.body;
       const query = { email: user?.email };
@@ -121,7 +132,7 @@ async function run() {
     });
 
     /*-------------------> Store api<----------------------*/
-    app.get("/shops/:email", verifyToken, verifyManager, async (req, res) => {
+    app.get("/shops/:email", verifyToken, async (req, res) => {
       const userEmail = req.params.email;
       const filter = { owner_email: userEmail };
       const result = await shopsCollection.findOne(filter);
@@ -153,6 +164,19 @@ async function run() {
       const result = await productsCollection.findOne(filter);
       res.send(result);
     });
+    app.get("/carts", async (req, res) => {
+      let query = {};
+      if (req.query?.email) {
+        query = { email: req.query.email };
+      }
+      const result = await cartsCollection.find(query).toArray();
+      res.send(result);
+    });
+    app.post("/carts", async (req, res) => {
+      const newProducts = req.body;
+      const result = await cartsCollection.insertOne(newProducts);
+      res.send(result);
+    });
     app.post("/products", async (req, res) => {
       const newProducts = req.body;
       const result = await productsCollection.insertOne(newProducts);
@@ -175,6 +199,18 @@ async function run() {
         console.log(err.message);
       }
     });
+    app.patch("/products/:email/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+        const filter = { _id: new ObjectId(id) };
+        const updateOperation = { $inc: { saleCount: 1, product_quantity: -1 } };
+
+        const result = await productsCollection.updateOne(filter, updateOperation);
+        res.send(result);
+      } catch (err) {
+        console.log(err.message);
+      }
+    });
     app.delete("/products/:email/:id", async (req, res) => {
       try {
         const id = req.params.id;
@@ -184,6 +220,13 @@ async function run() {
       } catch (err) {
         console.log(err.message);
       }
+    });
+
+    /*-------------------> Sales api<----------------------*/
+    app.post("/sales", async (req, res) => {
+      const newSales = req.body;
+      const result = await salesCollection.insertOne(newSales);
+      res.send(result);
     });
 
     /*-------------------> review api<----------------------*/
