@@ -36,6 +36,7 @@ async function run() {
     const cartsCollection = client.db("InventoHub").collection("carts");
     const salesCollection = client.db("InventoHub").collection("sales");
     const subscriptionCollection = client.db("InventoHub").collection("subscription");
+    const totalSoldCollection = client.db("InventoHub").collection("totalSold");
 
     /*-------------------> jwt related api<----------------------*/
     app.post("/jwt", async (req, res) => {
@@ -104,6 +105,16 @@ async function run() {
       }
       res.send({ admin });
     });
+    app.get("/users/admin", async (req, res) => {
+      try {
+        // const userEmail = req.params.email;
+        const query = { role: "admin" };
+        const result = await usersCollection.findOne(query);
+        res.send(result);
+      } catch (err) {
+        console.log(err);
+      }
+    });
     app.get("/users", async (req, res) => {
       try {
         const filter = { role: { $ne: "admin" } };
@@ -123,6 +134,15 @@ async function run() {
       const result = await usersCollection.insertOne(user);
       res.send(result);
     });
+    app.patch("/users/admin", async (req, res) => {
+      const filter = { role: "admin" };
+      const updatedInfo = req.body;
+      const updateDoc = {
+        $set: { ...updatedInfo },
+      };
+      const result = await usersCollection.updateOne(filter, updateDoc);
+      res.send(result);
+    });
     app.patch("/users/manager/:email", async (req, res) => {
       const userEmail = req.params.email;
       const updatedInfo = req.body;
@@ -136,7 +156,7 @@ async function run() {
     });
 
     /*-------------------> Store api<----------------------*/
-    app.get("/shops/:email", verifyToken, async (req, res) => {
+    app.get("/shops/:email", async (req, res) => {
       const userEmail = req.params.email;
       const filter = { owner_email: userEmail };
       const result = await shopsCollection.findOne(filter);
@@ -151,6 +171,20 @@ async function run() {
       const newShop = req.body;
       newShop.productLimit = 3;
       const result = await shopsCollection.insertOne(newShop);
+      res.send(result);
+    });
+    app.patch("/shops/:email", async (req, res) => {
+      const userEmail = req.params.email;
+      const updatedInfo = req.body;
+      console.log(updatedInfo);
+      const filter = {
+        owner_email: userEmail,
+      };
+
+      const updateDoc = {
+        $set: { ...updatedInfo },
+      };
+      const result = await shopsCollection.updateOne(filter, updateDoc);
       res.send(result);
     });
 
@@ -227,10 +261,65 @@ async function run() {
     });
 
     /*-------------------> Sales api<----------------------*/
+    app.get("/sales/:email", async (req, res) => {
+      const userEmail = req.params.email;
+      const query = { email: userEmail };
+      const result = await salesCollection.find(query).toArray();
+      res.send(result);
+    });
     app.post("/sales", async (req, res) => {
       const newSales = req.body;
-      const result = await salesCollection.insertOne(newSales);
+      const result = await salesCollection.insertMany(newSales);
       res.send(result);
+    });
+
+    /*-------------------> total sold api<----------------------*/
+    app.post("/totalSold", async (req, res) => {
+      const sold = req.body;
+      const result = await totalSoldCollection.insertOne(sold);
+      res.send(result);
+    });
+
+    /*-------------------> getPaid api<----------------------*/
+
+    app.post("/getPaid", async (req, res) => {
+      try {
+        const { cartProductsIds, cartId } = req.body;
+
+        //convert to objectID
+        const cartProductObjectIds = cartProductsIds.map((id) => new ObjectId(id));
+
+        // //fetch matching cart data from product collection
+        const cartProducts = await productsCollection.find({ _id: { $in: cartProductObjectIds } }).toArray();
+
+        // //Find the quantity of similar  product in cart collection
+        const cartProductQuantities = {};
+        for (const productId of cartProductsIds) {
+          const quantity = cartProductsIds.filter((id) => id === productId).length;
+          cartProductQuantities[productId] = quantity;
+        }
+
+        // //update product count and salesCount  in product collection
+
+        for (const product of cartProducts) {
+          const quantityInCart = cartProductQuantities[product._id.toString()] || 0;
+          // Increment salesCount and decrement quantity
+          product.saleCount = (product.saleCount || 0) + quantityInCart;
+          product.product_quantity = (product.product_quantity || 0) - quantityInCart;
+          // Update the document in the products collection
+          const filter = { _id: product._id };
+          const updatedDoc = {
+            $set: { saleCount: product.saleCount, product_quantity: product.product_quantity },
+          };
+          await productsCollection.updateOne(filter, updatedDoc);
+        }
+
+        const result = await cartsCollection.deleteMany({ _id: { $in: cartId.map((id) => new ObjectId(id)) } });
+
+        res.send(result);
+      } catch (err) {
+        console.log(err);
+      }
     });
 
     /*-------------------> review api<----------------------*/
