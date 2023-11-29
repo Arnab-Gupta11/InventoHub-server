@@ -190,6 +190,10 @@ async function run() {
 
     /*-------------------> product api<----------------------*/
 
+    app.get("/products", async (req, res) => {
+      const result = await productsCollection.find().toArray();
+      res.send(result);
+    });
     app.get("/products/:email", async (req, res) => {
       const email = req.params.email;
       const filter = { userEmail: email };
@@ -261,12 +265,17 @@ async function run() {
     });
 
     /*-------------------> Sales api<----------------------*/
+    app.get("/sales", async (req, res) => {
+      const result = await salesCollection.find().toArray();
+      res.send(result);
+    });
     app.get("/sales/:email", async (req, res) => {
       const userEmail = req.params.email;
       const query = { email: userEmail };
-      const result = await salesCollection.find(query).toArray();
+      const result = await salesCollection.find(query).sort({ currentDate: -1 }).toArray();
       res.send(result);
     });
+
     app.post("/sales", async (req, res) => {
       const newSales = req.body;
       const result = await salesCollection.insertMany(newSales);
